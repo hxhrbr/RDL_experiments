@@ -17,7 +17,7 @@ def edge_type_to_valid_module_name(edge_type):
 
 
 
-class HeteroEncoder_with_edge_features(torch.nn.Module):
+class HeteroEncoder(torch.nn.Module):
     r"""HeteroEncoder based on PyTorch Frame.
 
     Args:
@@ -126,7 +126,7 @@ class HeteroEncoder_with_edge_features(torch.nn.Module):
 
 
 
-class HeteroTemporalEncoder_with_edge_features(torch.nn.Module):
+class HeteroTemporalEncoder(torch.nn.Module):
     def __init__(
             self,
             node_types: List[NodeType],
