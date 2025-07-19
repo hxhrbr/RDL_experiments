@@ -142,7 +142,7 @@ class Model(torch.nn.Module):
         self,
         min_timestamp,
         max_timestamp,
-        update_period_duration,
+        update_period,
         batch: HeteroData,
         entity_table: NodeType,
         hidden_dict: Dict = None,
@@ -168,9 +168,9 @@ class Model(torch.nn.Module):
             batch.time_dict,
             min_timestamp,
             max_timestamp,
-            update_period_duration
+            update_period
         )
-
+        '''
         for edge_index_dict in parts:
 
             gnn_out = self.gnn(
@@ -184,12 +184,56 @@ class Model(torch.nn.Module):
                 x_dict[node_type] = x_dict[node_type] + gnn_out[node_type]
 
         return self.head(x_dict[entity_table][: seed_time.size(0)])
+        '''
+        for edge_index_dict in parts:
+            involved_nodes = {}
+            for (src_type, _, dst_type), edge_index in edge_index_dict.items():
+                for node_type, idxs in zip([src_type, dst_type], [edge_index[0], edge_index[1]]):
+                    if node_type not in involved_nodes:
+                        involved_nodes[node_type] = []
+                    involved_nodes[node_type].append(idxs)
+
+            x_sub_dict = {}
+            node_id_map = {}
+
+            for node_type, list_of_node_indices in involved_nodes.items():
+                all_nodes = torch.cat(list_of_node_indices)
+                node_ids, inverse = torch.unique(all_nodes, sorted=True, return_inverse=True)
+
+                x_sub_dict[node_type] = x_dict[node_type][node_ids].contiguous()
+                node_id_map[node_type] = (node_ids, inverse)
+
+                involved_nodes[node_type] = node_ids  # reuse for writing back
+
+            edge_index_sub_dict = {}
+            for (src_type, rel_type, dst_type), edge_index in edge_index_dict.items():
+                src_node_ids, _ = node_id_map[src_type]
+                dst_node_ids, _ = node_id_map[dst_type]
+
+                remapped_src = torch.bucketize(edge_index[0], src_node_ids)
+                remapped_dst = torch.bucketize(edge_index[1], dst_node_ids)
+
+                edge_index_sub_dict[(src_type, rel_type, dst_type)] = torch.stack([remapped_src, remapped_dst], dim=0)
+
+            gnn_out = self.gnn(
+                x_sub_dict,
+                edge_index_sub_dict,
+                batch.num_sampled_nodes_dict,
+                batch.num_sampled_edges_dict,
+            )
+
+            for node_type, out_feats in gnn_out.items():
+                node_ids = involved_nodes[node_type]
+                x_dict[node_type][node_ids] += out_feats
+
+        out = self.head(x_dict[entity_table][: batch[entity_table].seed_time.size(0)])
+        return out
 
     def forward_dst_readout(
         self,
         min_timestamp,
         max_timestamp,
-        update_period_duration,
+        update_period,
         batch: HeteroData,
         entity_table: NodeType,
         dst_table: NodeType,
@@ -224,7 +268,7 @@ class Model(torch.nn.Module):
             batch.time_dict,
             min_timestamp,
             max_timestamp,
-            update_period_duration
+            update_period
         )
 
         for edge_index_dict in parts:
