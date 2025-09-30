@@ -5,7 +5,7 @@ import torch_frame
 from torch import Tensor
 from torch_frame.data.stats import StatType
 from torch_frame.nn.models import ResNet
-from torch_geometric.nn import HeteroConv, LayerNorm, PositionalEncoding, SAGEConv
+from torch_geometric.nn import HeteroConv, LayerNorm, PositionalEncoding, SAGEConv, GATConv
 from torch_geometric.typing import EdgeType, NodeType, EdgeTypeStr
 from typing_extensions import Union
 

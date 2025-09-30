@@ -85,7 +85,7 @@ def make_subgraph_for_part(
     entity_table,
     num_seeds,
     ensure_seed_presence: bool = True,
-    device=None,
+    device='cuda',
     dtype=torch.long,
 ):
     # TODO: think of pruning useless parts of this subgraph (i.e. disconnected from the seed node)
@@ -98,21 +98,6 @@ def make_subgraph_for_part(
         involved_nodes:       {node_type: LongTensor[sorted global ids used in this part]}
                                (sorted global ids enable fast alignment later via searchsorted)
     """
-    # Choose a device if not provided
-
-    # TODO: try to write this more elegantly... or see if we can sort of skip it
-    if device is None:
-        # Try to infer from any feature tensor, else from any edge tensor
-        for v in x_dict.values():
-            device = v.device
-            break
-        else:
-            for _, eidx in edge_index_dict.items():
-                device = eidx.device
-                break
-        if device is None:
-            device = torch.device("cpu")
-
     involved_nodes = {}
 
     # Keep seed nodes (as you had it) so they are never dropped
@@ -213,9 +198,9 @@ def stack_seed_embeddings(
     row_in_part = torch.arange(S, device=feats_all.device)   # [S]
     seeds_all_idxs = offsets.unsqueeze(1) + row_in_part.unsqueeze(0) # [P, S]
 
-    # Gather and reshape to [S, P, D]
-    embs = feats_all[seeds_all_idxs.reshape(-1)].view(P, S, D).transpose(0, 1).contiguous()
-    return embs  # [S, P, D]
+    # Gather and reshape to [S, D, P]
+    embs = feats_all[seeds_all_idxs.reshape(-1)].view(P, S, D).permute(1, 2, 0).contiguous()
+    return embs  # [S, D, P]
 
 
 
